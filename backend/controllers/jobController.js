@@ -1,5 +1,6 @@
 import Job from "../models/Job.js";
 import { isStationOverlap } from "../utils/stationUtils.js";
+import { getBudgetCompatibility } from "../utils/budgetUtils.js";
 
 // ✅ CREATE JOB
 export const createJob = async (req, res) => {
@@ -25,21 +26,35 @@ export const createJob = async (req, res) => {
 };
 
 // ✅ GET ALL JOBS (ONLY OPEN)
+
 export const getJobs = async (req, res) => {
   try {
-    const { skill, from, to } = req.query;
+    const { skill, from, to, expectedRate } = req.query;
 
     let jobs = await Job.find({ status: "open" });
 
+    // ✅ Skill Filter (case-insensitive)
     if (skill) {
-      jobs = jobs.filter((job) => job.skillRequired === skill);
+      jobs = jobs.filter(
+        (job) => job.skillRequired.toLowerCase() === skill.toLowerCase(),
+      );
     }
 
+    // ✅ Station Overlap Filter
     if (from && to) {
       jobs = jobs.filter((job) =>
         isStationOverlap(job.stationRange.from, job.stationRange.to, from, to),
       );
     }
+
+    // ✅ Budget Compatibility Injection 🔥
+    jobs = jobs.map((job) => ({
+      ...job._doc,
+      budgetCompatibility: getBudgetCompatibility(
+        job.budget,
+        Number(expectedRate),
+      ),
+    }));
 
     res.json(jobs);
   } catch (error) {
