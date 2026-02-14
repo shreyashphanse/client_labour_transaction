@@ -28,6 +28,32 @@ export const createJob = async (req, res) => {
   }
 };
 
+// ✅ JOB REJECTION FUNCTIONALITY (NEW) - LABOURS CAN REJECT JOBS TO IMPROVE MATCHING ALGORITHM
+export const rejectJob = async (req, res) => {
+  try {
+    const job = await Job.findById(req.params.id);
+
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+
+    const labourId = req.user._id;
+
+    // Prevent duplicate rejection
+    if (job.rejectedBy.includes(labourId)) {
+      return res.status(400).json({ message: "Already rejected" });
+    }
+
+    job.rejectedBy.push(labourId);
+
+    await job.save();
+
+    res.json({ message: "Job rejected" });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
 // ✅ GET CLIENT STATS
 
 export const getClientStats = async (req, res) => {

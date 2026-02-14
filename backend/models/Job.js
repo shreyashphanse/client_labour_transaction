@@ -100,6 +100,12 @@ const jobSchema = new mongoose.Schema(
         default: null,
       },
     },
+    rejectedBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
   },
   {
     timestamps: true,
