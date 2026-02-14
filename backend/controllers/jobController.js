@@ -4,6 +4,7 @@ import { getBudgetCompatibility } from "../utils/budgetUtils.js";
 import { calculateJobScore } from "../utils/rankingUtils.js";
 import { calculateReliabilityScore } from "../utils/reliabilityUtils.js";
 import { calculateSuccessProbability } from "../utils/probabilityUtils.js";
+import Payment from "../models/Payment.js";
 
 // ✅ CREATE JOB
 export const createJob = async (req, res) => {
@@ -248,18 +249,40 @@ export const completeJob = async (req, res) => {
   try {
     const job = await Job.findById(req.params.id);
 
-    if (!job) return res.status(404).json({ message: "Job not found" });
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
 
-    if (job.status !== "assigned")
-      return res.status(400).json({ message: "Invalid job state" });
+    if (
+      !job.acceptedBy ||
+      job.acceptedBy.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    // ✅ Prevent double completion
+    if (job.status === "completed") {
+      return res.status(400).json({ message: "Job already completed" });
+    }
 
     job.status = "completed";
-
     await job.save();
 
-    res.json(job);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+    // ✅ Prevent duplicate payment 🔥🔥🔥
+    const existingPayment = await Payment.findOne({ job: job._id });
+
+    if (!existingPayment) {
+      await Payment.create({
+        job: job._id,
+        client: job.createdBy,
+        labour: job.acceptedBy,
+        amount: job.budget,
+      });
+    }
+
+    res.json({ message: "Job completed & payment handled" });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 };
 
