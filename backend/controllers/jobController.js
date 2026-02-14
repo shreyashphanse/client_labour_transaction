@@ -3,6 +3,7 @@ import { isStationOverlap } from "../utils/stationUtils.js";
 import { getBudgetCompatibility } from "../utils/budgetUtils.js";
 import { calculateJobScore } from "../utils/rankingUtils.js";
 import { calculateReliabilityScore } from "../utils/reliabilityUtils.js";
+import { calculateSuccessProbability } from "../utils/probabilityUtils.js";
 
 // ✅ CREATE JOB
 export const createJob = async (req, res) => {
@@ -114,16 +115,27 @@ export const getJobs = async (req, res) => {
     }
 
     // ✅ SINGLE MAP 🔥🔥🔥
-    jobs = jobs.map((job) => ({
-      ...job._doc,
-
-      budgetCompatibility: getBudgetCompatibility(
+    jobs = jobs.map((job) => {
+      const budgetCompatibility = getBudgetCompatibility(
         job.budget,
         Number(expectedRate),
-      ),
+      );
 
-      score: calculateJobScore(job, Number(expectedRate)),
-    }));
+      const clientScore = 70; // TEMPORARY 😏 (dynamic next)
+
+      return {
+        ...job._doc,
+
+        budgetCompatibility,
+
+        score: calculateJobScore(job, Number(expectedRate)),
+
+        successProbability: calculateSuccessProbability({
+          clientScore,
+          budgetCompatibility,
+        }),
+      };
+    });
 
     // ✅ SORT
     jobs.sort((a, b) => b.score - a.score);
