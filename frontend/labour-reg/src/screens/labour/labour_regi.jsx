@@ -1,9 +1,10 @@
 import React, { useRef } from "react";
-import FormCard from "../components/FormCard";
-import { ensureMobileFocus } from "../utils/mobileFocus";
+import FormCard from "../../components/FormCard";
+import { ensureMobileFocus } from "../../utils/mobileFocus";
 import { useNavigate } from "react-router-dom";
+import { t } from "../../utils/i18n";
 
-export default function ClientRegi() {
+export default function LabourRegi({ lang }) {
   const formRef = useRef(null);
   const navigate = useNavigate();
 
@@ -15,17 +16,21 @@ export default function ClientRegi() {
     const name = document.getElementById("name").value.trim();
     const dob = document.getElementById("dob").value.trim();
 
-    if (!dob) {
-      alert("Date of birth is required");
-      document.getElementById("dob").focus();
+    if (!phone) {
+      alert(t(lang, "phoneRequired"));
       return;
     }
 
-    // Validate age ≥ 18
+    if (!dob) {
+      alert(t(lang, "dobRequired"));
+      return;
+    }
+
     const birthDate = new Date(dob);
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
+
     if (
       monthDiff < 0 ||
       (monthDiff === 0 && today.getDate() < birthDate.getDate())
@@ -34,64 +39,35 @@ export default function ClientRegi() {
     }
 
     if (isNaN(age)) {
-      alert("Please select a valid date of birth");
-      document.getElementById("dob").focus();
+      alert(t(lang, "invalidDob"));
       return;
     }
 
     if (age < 18) {
-      alert("You must be at least 18 years old to register");
-      document.getElementById("dob").focus();
-      return;
-    }
-
-    if (!phone) {
-      alert("Phone number is required");
-      document.getElementById("phone").focus();
-      return;
-    }
-
-    if (!email) {
-      alert("Email is required");
-      document.getElementById("email").focus();
-      return;
-    }
-
-    // simple email format validation
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailPattern.test(email)) {
-      alert("Enter a valid email address");
-      document.getElementById("email").focus();
-      return;
-    }
-
-    if (!dob) {
-      alert("Date of birth is required");
-      document.getElementById("dob").focus();
+      alert(t(lang, "ageRestriction"));
       return;
     }
 
     if (!name) {
-      alert("Name is required");
-      document.getElementById("name").focus();
+      alert(t(lang, "nameRequired"));
       return;
     }
 
     console.log({ phone, email, name, dob });
-    alert("Client registration logged — backend link next.");
+
+    alert(t(lang, "registrationSuccess"));
   };
 
   return (
     <div className="page-root">
-      <FormCard title="Registration for Client">
+      <FormCard title={t(lang, "providerRegistration")}>
         <form ref={formRef} className="form" onSubmit={handleSubmit}>
           <label className="field">
-            <span className="label-text">Name</span>
+            <span className="label-text">{t(lang, "name")}</span>
             <input
               id="name"
-              name="name"
               type="text"
-              placeholder="Enter full name"
+              placeholder={t(lang, "enterName")}
               onFocus={ensureMobileFocus}
               required
               className="input"
@@ -99,13 +75,11 @@ export default function ClientRegi() {
           </label>
 
           <label className="field">
-            <span className="label-text">Phone no.</span>
+            <span className="label-text">{t(lang, "phone")}</span>
             <input
               id="phone"
-              name="phone"
               type="tel"
-              inputMode="tel"
-              placeholder="Enter phone number"
+              placeholder={t(lang, "enterPhone")}
               onFocus={ensureMobileFocus}
               required
               className="input"
@@ -113,23 +87,20 @@ export default function ClientRegi() {
           </label>
 
           <label className="field">
-            <span className="label-text">Email</span>
+            <span className="label-text">{t(lang, "emailOptional")}</span>
             <input
               id="email"
-              name="email"
               type="email"
-              placeholder="Enter email address"
+              placeholder={t(lang, "enterEmail")}
               onFocus={ensureMobileFocus}
-              required
               className="input"
             />
           </label>
 
           <label className="field">
-            <span className="label-text">Date of Birth</span>
+            <span className="label-text">{t(lang, "dob")}</span>
             <input
               id="dob"
-              name="dob"
               type="date"
               onFocus={ensureMobileFocus}
               required
@@ -137,17 +108,18 @@ export default function ClientRegi() {
             />
           </label>
 
-          <button id="registerBtn" className="submit-btn" type="submit">
-            Register
+          <button className="submit-btn" type="submit">
+            {t(lang, "register")}
           </button>
+
           <div className="login-redirect">
-            <span>Already registered?</span>
+            <span>{t(lang, "alreadyRegistered")}</span>
             <button
               type="button"
               className="login-link"
               onClick={() => navigate("/login")}
             >
-              Login here
+              {t(lang, "login")}
             </button>
           </div>
         </form>
@@ -161,20 +133,24 @@ export default function ClientRegi() {
             padding: 20px;
             background: #f3f6ff;
           }
+
           .form {
             display: flex;
             flex-direction: column;
             gap: 14px;
           }
+
           .field {
             display: flex;
             flex-direction: column;
             gap: 6px;
           }
+
           .label-text {
             font-size: 13px;
             color: #6b7280;
           }
+
           .input {
             height: 44px;
             padding: 10px 12px;
@@ -184,49 +160,29 @@ export default function ClientRegi() {
             font-size: 15px;
             outline: none;
           }
-          .input:focus {
-            box-shadow: 0 0 0 4px rgba(43, 110, 246, 0.08);
-            border-color: #2b6ef6;
-          }
+
           .submit-btn {
-            margin-top: 6px;
             height: 46px;
             border-radius: 10px;
             border: none;
             background: #2b6ef6;
             color: white;
             font-weight: 600;
-            font-size: 15px;
             cursor: pointer;
           }
+
           .login-redirect {
-            margin-top: 14px;
+            margin-top: 12px;
             display: flex;
             justify-content: center;
-            align-items: center;
             gap: 6px;
-            font-size: 14px;
-            color: #374151;
           }
 
           .login-link {
             background: none;
             border: none;
             color: #2b6ef6;
-            font-weight: 600;
             cursor: pointer;
-            text-decoration: underline;
-            padding: 0;
-          }
-
-          .login-link:hover {
-            color: #1747c8;
-          }
-
-          @media (max-width: 480px) {
-            .page-root {
-              padding-bottom: env(safe-area-inset-bottom, 24px);
-            }
           }
         `}</style>
       </FormCard>
