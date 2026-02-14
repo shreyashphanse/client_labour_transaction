@@ -5,6 +5,7 @@ import jobRoutes from "./routes/jobRoutes.js";
 import Job from "./models/Job.js";
 import testRoutes from "./routes/test.js";
 import authRoutes from "./routes/authRoutes.js";
+import paymentRoutes from "./routes/paymentRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -15,6 +16,7 @@ app.use(express.json());
 app.use("/api/jobs", jobRoutes);
 app.use("/api/test", testRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/payments", paymentRoutes);
 
 const PORT = process.env.PORT || 5000;
 
