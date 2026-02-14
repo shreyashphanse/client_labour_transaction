@@ -5,6 +5,8 @@ import { calculateJobScore } from "../utils/rankingUtils.js";
 import { calculateReliabilityScore } from "../utils/reliabilityUtils.js";
 import { calculateSuccessProbability } from "../utils/probabilityUtils.js";
 import Payment from "../models/Payment.js";
+import { updateReliability } from "../utils/reliabilityEngine.js";
+import User from "../models/User.js";
 
 // ✅ CREATE JOB
 export const createJob = async (req, res) => {
@@ -268,7 +270,7 @@ export const completeJob = async (req, res) => {
     job.status = "completed";
     await job.save();
 
-    // ✅ Prevent duplicate payment 🔥🔥🔥
+    // ✅ Prevent duplicate payment 🔥
     const existingPayment = await Payment.findOne({ job: job._id });
 
     if (!existingPayment) {
@@ -279,6 +281,13 @@ export const completeJob = async (req, res) => {
         amount: job.budget,
       });
     }
+
+    // ✅ Reliability Score Update 🔥🔥🔥
+    const labour = await User.findById(job.acceptedBy);
+
+    labour.reliabilityScore = updateReliability(labour.reliabilityScore, +5);
+
+    await labour.save();
 
     res.json({ message: "Job completed & payment handled" });
   } catch (err) {
@@ -306,6 +315,13 @@ export const cancelJob = async (req, res) => {
     };
 
     await job.save();
+
+    // ✅ Reliability Penalty 🔥🔥🔥
+    const user = await User.findById(req.user._id);
+
+    user.reliabilityScore = updateReliability(user.reliabilityScore, -10);
+
+    await user.save();
 
     res.json(job);
   } catch (error) {

@@ -6,6 +6,7 @@ import Job from "./models/Job.js";
 import testRoutes from "./routes/test.js";
 import authRoutes from "./routes/authRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
+import ratingRoutes from "./routes/ratingRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -17,6 +18,7 @@ app.use("/api/jobs", jobRoutes);
 app.use("/api/test", testRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/ratings", ratingRoutes);
 
 const PORT = process.env.PORT || 5000;
 
