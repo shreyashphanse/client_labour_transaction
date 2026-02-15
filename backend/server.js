@@ -3,11 +3,11 @@ import dotenv from "dotenv";
 import connectDB from "./config/db.js";
 import jobRoutes from "./routes/jobRoutes.js";
 import Job from "./models/Job.js";
-import testRoutes from "./routes/test.js";
 import authRoutes from "./routes/authRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import ratingRoutes from "./routes/ratingRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -16,11 +16,11 @@ const app = express();
 app.use(express.json());
 
 app.use("/api/jobs", jobRoutes);
-app.use("/api/test", testRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/ratings", ratingRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/users", userRoutes);
 
 const PORT = process.env.PORT || 5000;
 

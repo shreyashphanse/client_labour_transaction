@@ -36,13 +36,16 @@ export const rejectJob = async (req, res) => {
   try {
     const job = await Job.findById(req.params.id);
 
-    if (!job) {
-      return res.status(404).json({ message: "Job not found" });
+    if (!job) return res.status(404).json({ message: "Job not found" });
+
+    // ✅ Only reject open jobs 🔥
+    if (job.status !== "open") {
+      return res.status(400).json({ message: "Cannot reject this job" });
     }
 
     const labourId = req.user._id;
 
-    // Prevent duplicate rejection
+    // ✅ Prevent duplicate rejection
     if (job.rejectedBy.includes(labourId)) {
       return res.status(400).json({ message: "Already rejected" });
     }
@@ -182,6 +185,80 @@ export const getJobs = async (req, res) => {
   }
 };
 
+// ✅ GET CLIENT DASHBOARD STATS (NEW)
+export const getClientDashboard = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const totalJobs = await Job.countDocuments({ createdBy: userId });
+
+    const completedJobs = await Job.countDocuments({
+      createdBy: userId,
+      status: "completed",
+    });
+
+    const cancelledJobs = await Job.countDocuments({
+      createdBy: userId,
+      status: "cancelled",
+    });
+
+    const activeJobs = await Job.countDocuments({
+      createdBy: userId,
+      status: { $in: ["open", "accepted", "in_progress"] },
+    });
+
+    res.json({
+      totalJobs,
+      completedJobs,
+      cancelledJobs,
+      activeJobs,
+    });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+// ✅ GET LABOUR DASHBOARD STATS (NEW)
+export const getLabourDashboard = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const acceptedJobs = await Job.countDocuments({
+      acceptedBy: userId,
+    });
+
+    const completedJobs = await Job.countDocuments({
+      acceptedBy: userId,
+      status: "completed",
+    });
+
+    const cancelledJobs = await Job.countDocuments({
+      acceptedBy: userId,
+      status: "cancelled",
+    });
+
+    const activeJobs = await Job.countDocuments({
+      acceptedBy: userId,
+      status: { $in: ["accepted", "in_progress"] },
+    });
+
+    const earnings = await Payment.aggregate([
+      { $match: { labour: userId, status: "verified" } },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
+    ]);
+
+    res.json({
+      acceptedJobs,
+      completedJobs,
+      cancelledJobs,
+      activeJobs,
+      totalEarnings: earnings[0]?.total || 0,
+    });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
 // ✅ GET ALL MY POSTED JOBS (ONLY OPEN)
 export const getMyPostedJobs = async (req, res) => {
   try {
@@ -226,17 +303,17 @@ export const getMyCompletedJobs = async (req, res) => {
 // ✅ ACCEPT JOB
 export const acceptJob = async (req, res) => {
   try {
-    const { labourId } = req.body;
-
     const job = await Job.findById(req.params.id);
 
     if (!job) return res.status(404).json({ message: "Job not found" });
 
-    if (job.status !== "open")
-      return res.status(400).json({ message: "Job already taken" });
+    // ✅ Prevent illegal acceptance 🔥🔥🔥
+    if (job.status !== "open") {
+      return res.status(400).json({ message: "Job not available" });
+    }
 
-    job.status = "assigned";
-    job.labourId = labourId;
+    job.status = "accepted"; // ✅ Keep lifecycle consistent
+    job.acceptedBy = req.user._id;
 
     await job.save();
 
@@ -251,10 +328,9 @@ export const completeJob = async (req, res) => {
   try {
     const job = await Job.findById(req.params.id);
 
-    if (!job) {
-      return res.status(404).json({ message: "Job not found" });
-    }
+    if (!job) return res.status(404).json({ message: "Job not found" });
 
+    // ✅ Only assigned labour can complete 🔥
     if (
       !job.acceptedBy ||
       job.acceptedBy.toString() !== req.user._id.toString()
@@ -262,9 +338,13 @@ export const completeJob = async (req, res) => {
       return res.status(403).json({ message: "Not authorized" });
     }
 
-    // ✅ Prevent double completion
+    // ✅ Prevent illegal completion 🔥🔥🔥
     if (job.status === "completed") {
       return res.status(400).json({ message: "Job already completed" });
+    }
+
+    if (job.status !== "accepted" && job.status !== "in_progress") {
+      return res.status(400).json({ message: "Job cannot be completed" });
     }
 
     job.status = "completed";
@@ -282,41 +362,47 @@ export const completeJob = async (req, res) => {
       });
     }
 
-    // ✅ Reliability Score Update 🔥🔥🔥
+    // ✅ Reliability Reward 🔥
     const labour = await User.findById(job.acceptedBy);
 
     labour.reliabilityScore = updateReliability(labour.reliabilityScore, +5);
 
     await labour.save();
 
-    res.json({ message: "Job completed & payment handled" });
-  } catch (err) {
-    res.status(400).json({ message: err.message });
+    res.json(job);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
 
 // ✅ CANCEL JOB
 export const cancelJob = async (req, res) => {
   try {
-    const { cancelledBy, reason } = req.body;
+    const { reason } = req.body;
 
     const job = await Job.findById(req.params.id);
 
     if (!job) return res.status(404).json({ message: "Job not found" });
 
-    if (job.status === "completed")
+    // ✅ Prevent illegal cancellation 🔥🔥🔥
+    if (job.status === "completed") {
       return res.status(400).json({ message: "Cannot cancel completed job" });
+    }
+
+    if (job.status === "cancelled") {
+      return res.status(400).json({ message: "Job already cancelled" });
+    }
 
     job.status = "cancelled";
 
     job.cancellation = {
-      cancelledBy,
+      cancelledBy: req.user._id,
       reason,
     };
 
     await job.save();
 
-    // ✅ Reliability Penalty 🔥🔥🔥
+    // ✅ Reliability Penalty 🔥
     const user = await User.findById(req.user._id);
 
     user.reliabilityScore = updateReliability(user.reliabilityScore, -10);

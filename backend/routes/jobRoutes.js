@@ -11,6 +11,8 @@ import {
   getMyPostedJobs,
   getMyAcceptedJobs,
   getMyCompletedJobs,
+  getClientDashboard,
+  getLabourDashboard,
 } from "../controllers/jobController.js";
 
 import {
@@ -53,5 +55,11 @@ router.get("/my-accepted", protect, labourOnly, getMyAcceptedJobs);
 
 // ✅ GET ALL MY COMPLETED JOBS
 router.get("/my-completed", protect, getMyCompletedJobs);
+
+// ✅ DASHBOARD DATA → Separate endpoints for client and labour dashboards
+router.get("/dashboard/client", protect, getClientDashboard);
+
+// ✅ DASHBOARD DATA → Separate endpoints for client and labour dashboards
+router.get("/dashboard/labour", protect, labourOnly, getLabourDashboard);
 
 export default router;
