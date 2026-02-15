@@ -8,13 +8,19 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import ratingRoutes from "./routes/ratingRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
+import cors from "cors";
 
 dotenv.config();
 connectDB();
 
 const app = express();
-app.use(express.json());
 
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+  }),
+);
+app.use(express.json());
 app.use("/api/jobs", jobRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/payments", paymentRoutes);
