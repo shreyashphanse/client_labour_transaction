@@ -1,17 +1,24 @@
-// src/index.jsx
+// src/main.jsx
+
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
-import "./index.css"; // if you have global styles
+import "./index.css";
+
+import { AuthProvider } from "./context/AuthContext"; // ✅ ADDED
 
 const container = document.getElementById("root");
 const root = createRoot(container);
 
 root.render(
   <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </React.StrictMode>
+    <AuthProvider>
+      {" "}
+      {/* ✅ CRITICAL FIX */}
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </AuthProvider>
+  </React.StrictMode>,
 );

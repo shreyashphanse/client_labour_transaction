@@ -1,24 +1,33 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import FormCard from "../../components/FormCard";
 import { ensureMobileFocus } from "../../utils/mobileFocus";
 import { useNavigate } from "react-router-dom";
 import { t } from "../../utils/i18n";
 
+import api from "../../utils/api"; // ✅ ADDED
+
 export default function ClientRegi({ lang }) {
   const formRef = useRef(null);
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const [form, setForm] = useState({
+    // ✅ ADDED
+    name: "",
+    phone: "",
+    email: "",
+    password: "",
+    dob: "",
+  });
+
+  const [loading, setLoading] = useState(false); // ✅ ADDED
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const phone = document.getElementById("phone").value.trim();
-    const email = document.getElementById("email").value.trim();
-    const name = document.getElementById("name").value.trim();
-    const dob = document.getElementById("dob").value.trim();
+    const { name, phone, email, password, dob } = form;
 
     if (!dob) {
       alert(t(lang, "dobRequired"));
-      document.getElementById("dob").focus();
       return;
     }
 
@@ -44,12 +53,12 @@ export default function ClientRegi({ lang }) {
       return;
     }
 
-    if (!phone) {
+    if (!phone.trim()) {
       alert(t(lang, "phoneRequired"));
       return;
     }
 
-    if (!email) {
+    if (!email.trim()) {
       alert(t(lang, "emailRequired"));
       return;
     }
@@ -61,14 +70,38 @@ export default function ClientRegi({ lang }) {
       return;
     }
 
-    if (!name) {
+    if (!name.trim()) {
       alert(t(lang, "nameRequired"));
       return;
     }
 
-    console.log({ phone, email, name, dob });
+    if (!password.trim()) {
+      // ✅ ADDED
+      alert("Password required");
+      return;
+    }
 
-    alert(t(lang, "registrationSuccess"));
+    try {
+      setLoading(true);
+
+      const { data } = await api.post("/auth/register/client", {
+        name,
+        phone,
+        email,
+        password,
+      });
+
+      console.log("Registered:", data);
+
+      alert(t(lang, "registrationSuccess"));
+
+      navigate("/login");
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+      alert(err.response?.data?.message || "Registration failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -78,52 +111,71 @@ export default function ClientRegi({ lang }) {
           <label className="field">
             <span className="label-text">{t(lang, "name")}</span>
             <input
-              id="name"
               type="text"
               placeholder={t(lang, "enterName")}
               onFocus={ensureMobileFocus}
               required
               className="input"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
           </label>
 
           <label className="field">
             <span className="label-text">{t(lang, "phone")}</span>
             <input
-              id="phone"
               type="tel"
               placeholder={t(lang, "enterPhone")}
               onFocus={ensureMobileFocus}
               required
               className="input"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
             />
           </label>
 
           <label className="field">
             <span className="label-text">{t(lang, "email")}</span>
             <input
-              id="email"
               type="email"
               placeholder={t(lang, "enterEmail")}
               onFocus={ensureMobileFocus}
               required
               className="input"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+            />
+          </label>
+
+          {/* ✅ PASSWORD FIELD ADDED */}
+
+          <label className="field">
+            <span className="label-text">Password</span>
+            <input
+              type="password"
+              placeholder="Enter Password"
+              onFocus={ensureMobileFocus}
+              required
+              className="input"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
             />
           </label>
 
           <label className="field">
             <span className="label-text">{t(lang, "dob")}</span>
             <input
-              id="dob"
               type="date"
               onFocus={ensureMobileFocus}
               required
               className="input"
+              value={form.dob}
+              onChange={(e) => setForm({ ...form, dob: e.target.value })}
             />
           </label>
 
-          <button className="submit-btn" type="submit">
-            {t(lang, "register")}
+          <button className="submit-btn" type="submit" disabled={loading}>
+            {loading ? "Registering..." : t(lang, "register")}
           </button>
 
           <div className="login-redirect">
@@ -197,6 +249,11 @@ export default function ClientRegi({ lang }) {
             border: none;
             color: #2b6ef6;
             cursor: pointer;
+          }
+
+          button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
           }
         `}</style>
       </FormCard>

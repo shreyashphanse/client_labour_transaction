@@ -3,54 +3,55 @@ import FormCard from "../components/FormCard";
 import { ensureMobileFocus } from "../utils/mobileFocus";
 import { t } from "../utils/i18n";
 
+import api from "../utils/api";
+import { useAuth } from "../hooks/useAuth";
+import { useNavigate } from "react-router-dom";
+
 export default function Login({ lang }) {
   const formRef = useRef(null);
-  const [otpSent, setOtpSent] = useState(false);
 
-  const sendOtp = () => {
-    const phone = document.getElementById("phone").value.trim();
+  const [form, setForm] = useState({
+    phone: "",
+    password: "", // ✅ CHANGED
+  });
 
-    if (!phone) {
-      alert(t(lang, "enterPhoneForOtp"));
-      document.getElementById("phone").focus();
-      return;
-    }
+  const [loading, setLoading] = useState(false);
 
-    console.log("Send OTP to:", phone);
-    setOtpSent(true);
+  const { login } = useAuth();
+  const navigate = useNavigate();
 
-    alert(t(lang, "otpSent") + " " + phone);
-  };
+  // ---------------- LOGIN ----------------
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const phone = document.getElementById("phone").value.trim();
-    const otp = document.getElementById("otp").value.trim();
-
-    if (!phone) {
+    if (!form.phone.trim()) {
       alert(t(lang, "phoneRequired"));
-      document.getElementById("phone").focus();
       return;
     }
 
-    if (!otp) {
-      alert(t(lang, "enterOtp"));
-      document.getElementById("otp").focus();
+    if (!form.password.trim()) {
+      alert(t(lang, "passwordRequired"));
       return;
     }
 
-    const otpPattern = /^\d{4,6}$/;
+    try {
+      setLoading(true);
 
-    if (!otpPattern.test(otp)) {
-      alert(t(lang, "invalidOtp"));
-      document.getElementById("otp").focus();
-      return;
+      const { data } = await api.post("/auth/login", {
+        phone: form.phone,
+        password: form.password, // ✅ FIXED
+      });
+
+      login(data);
+
+      navigate("/jobs");
+    } catch (err) {
+      console.error(err.response?.data || err.message);
+      alert(err.response?.data?.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
-
-    console.log({ phone, otp });
-
-    alert(t(lang, "loginSuccess"));
   };
 
   return (
@@ -59,35 +60,37 @@ export default function Login({ lang }) {
         <form ref={formRef} className="form" onSubmit={handleSubmit}>
           <label className="field">
             <span className="label-text">{t(lang, "phone")}</span>
+
             <input
-              id="phone"
               type="tel"
               placeholder={t(lang, "enterPhone")}
               onFocus={ensureMobileFocus}
               required
               className="input"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
             />
           </label>
 
+          {/* ✅ REUSED OTP ROW → PASSWORD ROW */}
+
           <div className="otp-row">
             <label className="field otp-field">
-              <span className="label-text">{t(lang, "otp")}</span>
+              <span className="label-text">Password</span>
+
               <input
-                id="otp"
-                type="tel"
-                placeholder={t(lang, "enterOtp")}
+                type="password"
+                placeholder="Enter Password"
                 onFocus={ensureMobileFocus}
                 className="input"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
               />
             </label>
-
-            <button type="button" className="btn send-otp" onClick={sendOtp}>
-              {otpSent ? t(lang, "resendOtp") : t(lang, "sendOtp")}
-            </button>
           </div>
 
-          <button className="submit-btn" type="submit">
-            {t(lang, "login")}
+          <button className="submit-btn" type="submit" disabled={loading}>
+            {loading ? "Logging in..." : t(lang, "login")}
           </button>
         </form>
 
@@ -141,20 +144,6 @@ export default function Login({ lang }) {
             gap: 10px;
           }
 
-          .btn {
-            height: 44px;
-            border-radius: 10px;
-            border: none;
-            color: #fff;
-            font-weight: 600;
-            cursor: pointer;
-          }
-
-          .send-otp {
-            background: #4f8a52;
-            padding: 0 12px;
-          }
-
           .submit-btn {
             height: 46px;
             border-radius: 10px;
@@ -163,6 +152,11 @@ export default function Login({ lang }) {
             color: white;
             font-weight: 600;
             cursor: pointer;
+          }
+
+          button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
           }
         `}</style>
       </FormCard>
