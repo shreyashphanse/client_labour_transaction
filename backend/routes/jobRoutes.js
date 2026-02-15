@@ -13,6 +13,7 @@ import {
   getMyCompletedJobs,
   getClientDashboard,
   getLabourDashboard,
+  submitRating,
 } from "../controllers/jobController.js";
 
 import {
@@ -58,6 +59,9 @@ router.get("/my-completed", protect, getMyCompletedJobs);
 
 // ✅ DASHBOARD DATA → Separate endpoints for client and labour dashboards
 router.get("/dashboard/client", protect, getClientDashboard);
+
+// ✅ SUBMIT RATING → Auth required, ownership check inside controller
+router.patch("/:id/rate", protect, submitRating);
 
 // ✅ DASHBOARD DATA → Separate endpoints for client and labour dashboards
 router.get("/dashboard/labour", protect, labourOnly, getLabourDashboard);

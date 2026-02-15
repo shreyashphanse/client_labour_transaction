@@ -11,18 +11,16 @@ import User from "../models/User.js";
 // ✅ CREATE JOB
 export const createJob = async (req, res) => {
   try {
-    const { clientId, title, description, skillRequired, from, to, budget } =
-      req.body;
+    const { title, description, skillRequired, from, to, budget } = req.body;
 
     const job = await Job.create({
-      clientId,
+      createdBy: req.user._id, // ✅ CRITICAL FIX
       title,
       description,
       skillRequired,
       stationRange: { from, to },
       budget,
-      // expiresAt: new Date(Date.now() + 30 * 1000), // 24 hrs expiry
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hrs expiry
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
 
     res.status(201).json(job);
@@ -224,22 +222,22 @@ export const getLabourDashboard = async (req, res) => {
     const userId = req.user._id;
 
     const acceptedJobs = await Job.countDocuments({
-      acceptedBy: userId,
+      labourId: userId,
     });
 
     const completedJobs = await Job.countDocuments({
-      acceptedBy: userId,
+      labourId: userId,
       status: "completed",
     });
 
     const cancelledJobs = await Job.countDocuments({
-      acceptedBy: userId,
+      labourId: userId,
       status: "cancelled",
     });
 
     const activeJobs = await Job.countDocuments({
-      acceptedBy: userId,
-      status: { $in: ["accepted", "in_progress"] },
+      labourId: userId,
+      status: { $in: ["assigned", "in_progress"] },
     });
 
     const earnings = await Payment.aggregate([
@@ -276,8 +274,8 @@ export const getMyPostedJobs = async (req, res) => {
 export const getMyAcceptedJobs = async (req, res) => {
   try {
     const jobs = await Job.find({
-      acceptedBy: req.user._id,
-      status: { $in: ["accepted", "in_progress"] },
+      labourId: req.user._id,
+      status: { $in: ["assigned", "in_progress"] },
     }).sort({ createdAt: -1 });
 
     res.json(jobs);
@@ -290,7 +288,7 @@ export const getMyAcceptedJobs = async (req, res) => {
 export const getMyCompletedJobs = async (req, res) => {
   try {
     const jobs = await Job.find({
-      $or: [{ createdBy: req.user._id }, { acceptedBy: req.user._id }],
+      $or: [{ createdBy: req.user._id }, { labourId: req.user._id }],
       status: "completed",
     }).sort({ createdAt: -1 });
 
@@ -307,13 +305,12 @@ export const acceptJob = async (req, res) => {
 
     if (!job) return res.status(404).json({ message: "Job not found" });
 
-    // ✅ Prevent illegal acceptance 🔥🔥🔥
     if (job.status !== "open") {
       return res.status(400).json({ message: "Job not available" });
     }
 
-    job.status = "accepted"; // ✅ Keep lifecycle consistent
-    job.acceptedBy = req.user._id;
+    job.status = "assigned"; // ✅ ENUM SAFE
+    job.labourId = req.user._id; // ✅ SCHEMA SAFE
 
     await job.save();
 
@@ -330,40 +327,36 @@ export const completeJob = async (req, res) => {
 
     if (!job) return res.status(404).json({ message: "Job not found" });
 
-    // ✅ Only assigned labour can complete 🔥
-    if (
-      !job.acceptedBy ||
-      job.acceptedBy.toString() !== req.user._id.toString()
-    ) {
+    // ✅ Correct ownership check
+    if (!job.labourId || job.labourId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Not authorized" });
     }
 
-    // ✅ Prevent illegal completion 🔥🔥🔥
     if (job.status === "completed") {
       return res.status(400).json({ message: "Job already completed" });
     }
 
-    if (job.status !== "accepted" && job.status !== "in_progress") {
+    if (job.status !== "assigned" && job.status !== "in_progress") {
       return res.status(400).json({ message: "Job cannot be completed" });
     }
 
     job.status = "completed";
     await job.save();
 
-    // ✅ Prevent duplicate payment 🔥
+    // ✅ Prevent duplicate payment
     const existingPayment = await Payment.findOne({ job: job._id });
 
     if (!existingPayment) {
       await Payment.create({
         job: job._id,
         client: job.createdBy,
-        labour: job.acceptedBy,
+        labour: job.labourId,
         amount: job.budget,
       });
     }
 
-    // ✅ Reliability Reward 🔥
-    const labour = await User.findById(job.acceptedBy);
+    // ✅ Reliability reward
+    const labour = await User.findById(job.labourId);
 
     labour.reliabilityScore = updateReliability(labour.reliabilityScore, +5);
 
@@ -396,7 +389,7 @@ export const cancelJob = async (req, res) => {
     job.status = "cancelled";
 
     job.cancellation = {
-      cancelledBy: req.user._id,
+      cancelledBy: req.user.role, // ✅ FIXED
       reason,
     };
 
@@ -412,5 +405,43 @@ export const cancelJob = async (req, res) => {
     res.json(job);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// ✅ SUBMIT RATING
+export const submitRating = async (req, res) => {
+  try {
+    const { rating, review } = req.body;
+
+    const job = await Job.findById(req.params.id);
+
+    if (!job) return res.status(404).json({ message: "Job not found" });
+
+    if (job.status !== "completed") {
+      return res.status(400).json({ message: "Job not completed" });
+    }
+
+    // ✅ CRITICAL SAFETY FIX 🔥🔥🔥
+    if (!job.ratings) {
+      job.ratings = {
+        clientToLabour: { rating: null, review: null },
+        labourToClient: { rating: null, review: null },
+      };
+    }
+
+    if (req.user.role === "client") {
+      job.ratings.clientToLabour = { rating, review };
+    }
+
+    if (req.user.role === "labour") {
+      job.ratings.labourToClient = { rating, review };
+    }
+
+    await job.save();
+
+    res.json({ message: "Rating saved" });
+  } catch (err) {
+    console.error("RATING ERROR:", err); // ✅ DEBUG LINE
+    res.status(500).json({ message: err.message });
   }
 };

@@ -2,9 +2,10 @@ import mongoose from "mongoose";
 
 const jobSchema = new mongoose.Schema(
   {
-    clientId: {
+    createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
+      ref: "User",
     },
 
     labourId: {
@@ -81,6 +82,18 @@ const jobSchema = new mongoose.Schema(
       paidAt: {
         type: Date,
         default: null,
+      },
+    },
+
+    ratings: {
+      clientToLabour: {
+        rating: { type: Number, default: null },
+        review: { type: String, default: null },
+      },
+
+      labourToClient: {
+        rating: { type: Number, default: null },
+        review: { type: String, default: null },
       },
     },
 
