@@ -111,6 +111,12 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    if (user.banned) {
+      return res.status(403).json({
+        message: "Account banned. Contact support.",
+      });
+    }
+
     res.json({
       _id: user._id,
       name: user.name,

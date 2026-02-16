@@ -21,49 +21,64 @@ import {
   adminOnly,
   labourOnly,
 } from "../middleware/authMiddleware.js";
+import { checkBan } from "../middleware/checkBan.js";
 
 const router = express.Router();
 
 // ✅ CREATE JOB → Logged users only (client logic inside controller)
-router.post("/create", protect, createJob);
+router.post("/create", protect, checkBan, createJob);
 
 // ✅ GET JOBS → Logged users only
-router.get("/", protect, getJobs);
+router.get("/", protect, checkBan, getJobs);
 
 // ✅ ACCEPT JOB → Labour only
-router.patch("/:id/accept", protect, labourOnly, acceptJob);
+router.patch("/:id/accept", protect, checkBan, labourOnly, acceptJob);
 
 // ✅ REJECT JOB → Labour only
-router.patch("/:id/reject", protect, labourOnly, rejectJob);
+router.patch("/:id/reject", protect, checkBan, labourOnly, rejectJob);
 
 // ✅ COMPLETE JOB → Labour only
-router.patch("/:id/complete", protect, labourOnly, completeJob);
+router.patch("/:id/complete", protect, checkBan, labourOnly, completeJob);
 
 // ✅ CANCEL JOB → Auth required (ownership check inside controller)
-router.patch("/:id/cancel", protect, cancelJob);
+router.patch("/:id/cancel", protect, checkBan, cancelJob);
 
 // ✅ LABOUR STATS → Labour viewing own stats
-router.get("/labour-stats/:labourId", protect, labourOnly, getLabourStats);
+router.get(
+  "/labour-stats/:labourId",
+  protect,
+  checkBan,
+  checkBan,
+  labourOnly,
+  getLabourStats,
+);
 
 // ✅ CLIENT STATS → Any logged user (or restrict later)
-router.get("/client-stats/:clientId", protect, getClientStats);
+router.get("/client-stats/:clientId", protect, checkBan, getClientStats);
 
 // ✅ GET ALL MY POSTED JOBS
-router.get("/my-posted", protect, getMyPostedJobs);
+router.get("/my-posted", protect, checkBan, getMyPostedJobs);
 
 // ✅ GET ALL MY ACCEPTED JOBS
-router.get("/my-accepted", protect, labourOnly, getMyAcceptedJobs);
+router.get("/my-accepted", protect, checkBan, labourOnly, getMyAcceptedJobs);
 
 // ✅ GET ALL MY COMPLETED JOBS
-router.get("/my-completed", protect, getMyCompletedJobs);
+router.get("/my-completed", protect, checkBan, getMyCompletedJobs);
 
 // ✅ DASHBOARD DATA → Separate endpoints for client and labour dashboards
-router.get("/dashboard/client", protect, getClientDashboard);
+router.get("/dashboard/client", protect, checkBan, getClientDashboard);
 
 // ✅ SUBMIT RATING → Auth required, ownership check inside controller
-router.patch("/:id/rate", protect, submitRating);
+router.patch("/:id/rate", protect, checkBan, submitRating);
 
 // ✅ DASHBOARD DATA → Separate endpoints for client and labour dashboards
-router.get("/dashboard/labour", protect, labourOnly, getLabourDashboard);
+router.get(
+  "/dashboard/labour",
+  protect,
+  checkBan,
+  checkBan,
+  labourOnly,
+  getLabourDashboard,
+);
 
 export default router;
