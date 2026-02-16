@@ -4,8 +4,8 @@ import { t } from "../../utils/i18n";
 
 const FIXED = {
   phone: "8097142445",
-  email: "shreyashphanse22@gmail.com",
-  password: "Shreyash@22",
+  email: "pokemongosathiemail22@gmail.com",
+  password: "Shreyash@2214",
 };
 
 export default function AdminLogin({ lang }) {
@@ -91,24 +91,9 @@ export default function AdminLogin({ lang }) {
 
           {error && <div style={styles.error}>{error}</div>}
 
-          <div style={{ display: "flex", gap: 8 }}>
-            <button type="submit" style={styles.btnPrimary}>
-              {t(lang, "signIn")}
-            </button>
-
-            <button
-              type="button"
-              style={styles.btnGhost}
-              onClick={() => {
-                setPhone(FIXED.phone);
-                setEmail(FIXED.email);
-                setPassword(FIXED.password);
-                setError("");
-              }}
-            >
-              {t(lang, "fillDemo")}
-            </button>
-          </div>
+          <button type="submit" style={styles.btnPrimary}>
+            {t(lang, "signIn")}
+          </button>
         </form>
       </div>
     </div>

@@ -1,54 +1,88 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import { t } from "../../utils/i18n";
-
-const sampleUsers = [
-  {
-    id: 1,
-    name: "John Provider",
-    role: "provider",
-    phone: "9876543210",
-    verified: false,
-    banned: false,
-    idPhoto: null,
-    workPhotos: [],
-  },
-  {
-    id: 2,
-    name: "Jane Customer",
-    role: "customer",
-    phone: "8097142445",
-    verified: false,
-    banned: false,
-    idPhoto: null,
-    workPhotos: [],
-  },
-];
-
-const sampleJobs = [
-  {
-    id: 101,
-    title: "Fix sink",
-    client: "Jane Customer",
-    labour: "John Provider",
-    status: "posted",
-    accepted: false,
-  },
-];
 
 export default function AdminPanel({ lang }) {
   const navigate = useNavigate();
-  const [users, setUsers] = useState(sampleUsers);
-  const [jobs] = useState(sampleJobs);
+
+  const [users, setUsers] = useState([]);
+  const [jobs, setJobs] = useState([]);
+  const [disputes, setDisputes] = useState([]);
+  const [metrics, setMetrics] = useState(null);
+
   const [roleFilter, setRoleFilter] = useState("all");
   const [verifyFilter, setVerifyFilter] = useState("all");
-
-  const [photoModalSrc, setPhotoModalSrc] = useState(null);
   const [query, setQuery] = useState("");
-  const [disputes, setDisputes] = useState([
-    { id: 1, jobId: 101, text: "Provider didn't show up", resolved: false },
-  ]);
 
+  const [loading, setLoading] = useState(true);
+
+  const updateVerification = async (id, action) => {
+    const oldUsers = users;
+
+    setUsers((prev) =>
+      prev.map((u) => {
+        if (u._id !== id) return u;
+
+        let newStatus = u.verificationStatus;
+
+        if (action === "promote") {
+          if (u.verificationStatus === "unverified")
+            newStatus = "basic_verified";
+          else if (u.verificationStatus === "basic_verified")
+            newStatus = "trusted_verified";
+        }
+
+        if (action === "demote") {
+          if (u.verificationStatus === "trusted_verified")
+            newStatus = "basic_verified";
+          else if (u.verificationStatus === "basic_verified")
+            newStatus = "unverified";
+        }
+
+        if (action === "reset") {
+          newStatus = "unverified";
+        }
+
+        return { ...u, verificationStatus: newStatus };
+      }),
+    );
+
+    try {
+      await axios.patch(`/api/admin/users/${id}/verification`, { action });
+    } catch (err) {
+      console.error(err);
+      setUsers(oldUsers);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboard();
+  }, []);
+
+  const fetchDashboard = async () => {
+    try {
+      setLoading(true);
+
+      const [usersRes, jobsRes, disputesRes, metricsRes] = await Promise.all([
+        axios.get("/api/admin/users"),
+        axios.get("/api/admin/jobs"),
+        axios.get("/api/admin/disputes"),
+        axios.get("/api/admin/metrics"),
+      ]);
+
+      setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
+      setJobs(Array.isArray(jobsRes.data) ? jobsRes.data : []);
+      setDisputes(Array.isArray(disputesRes.data) ? disputesRes.data : []);
+      setMetrics(metricsRes.data);
+    } catch (err) {
+      console.error("Admin fetch failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ✅ FIXED LOGIC */
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
       const matchesSearch = `${u.name} ${u.phone}`
@@ -57,10 +91,12 @@ export default function AdminPanel({ lang }) {
 
       const matchesRole = roleFilter === "all" || u.role === roleFilter;
 
+      const isVerified = u.verificationStatus !== "unverified";
+
       const matchesVerify =
         verifyFilter === "all" ||
-        (verifyFilter === "verified" && u.verified) ||
-        (verifyFilter === "unverified" && !u.verified);
+        (verifyFilter === "verified" && isVerified) ||
+        (verifyFilter === "unverified" && !isVerified);
 
       return matchesSearch && matchesRole && matchesVerify;
     });
@@ -72,36 +108,64 @@ export default function AdminPanel({ lang }) {
     );
   }, [jobs, query]);
 
-  const toggleVerify = (id) => {
+  const toggleBan = async (id) => {
     setUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, verified: !u.verified } : u)),
+      prev.map((u) => (u._id === id ? { ...u, banned: !u.banned } : u)),
     );
+
+    try {
+      await axios.patch(`/api/admin/users/${id}/ban`);
+    } catch (err) {
+      console.error(err);
+      fetchDashboard();
+    }
   };
 
-  const toggleBan = (id) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, banned: !u.banned } : u)),
+  const forceCancel = async (id) => {
+    setJobs((prev) =>
+      prev.map((j) => (j._id === id ? { ...j, status: "cancelled" } : j)),
     );
+
+    try {
+      await axios.patch(`/api/admin/jobs/${id}/cancel`);
+    } catch (err) {
+      console.error(err);
+      fetchDashboard();
+    }
   };
 
-  const resolveDispute = (id) => {
-    setDisputes((d) =>
-      d.map((x) => (x.id === id ? { ...x, resolved: true } : x)),
-    );
+  const deleteJob = async (id) => {
+    const oldJobs = jobs;
+
+    setJobs((prev) => prev.filter((j) => j._id !== id));
+
+    try {
+      await axios.delete(`/api/admin/jobs/${id}`);
+    } catch (err) {
+      console.error(err);
+      setJobs(oldJobs);
+    }
   };
 
-  const metrics = useMemo(() => {
-    return {
-      verifiedProviders: users.filter((u) => u.verified).length,
-      jobsPosted: jobs.length,
-      acceptanceRate: 60,
-    };
-  }, [users, jobs]);
+  const resolveDispute = async (id) => {
+    try {
+      await axios.patch(`/api/admin/disputes/${id}/resolve`);
+      fetchDashboard();
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const handleLogout = () => {
     sessionStorage.removeItem("isAdmin");
     navigate("/admin", { replace: true });
   };
+
+  if (loading) {
+    return (
+      <div style={{ color: "#fff", padding: 40 }}>Loading admin data...</div>
+    );
+  }
 
   return (
     <div style={styles.page}>
@@ -109,7 +173,10 @@ export default function AdminPanel({ lang }) {
         <h2 style={{ margin: 0 }}>{t(lang, "adminPanel")}</h2>
 
         <div style={{ display: "flex", gap: 8 }}>
-          <button style={styles.btn}>{t(lang, "refresh")}</button>
+          <button style={styles.btn} onClick={fetchDashboard}>
+            {t(lang, "refresh")}
+          </button>
+
           <button style={styles.btnDanger} onClick={handleLogout}>
             {t(lang, "logout")}
           </button>
@@ -119,17 +186,20 @@ export default function AdminPanel({ lang }) {
       <div style={styles.container}>
         <aside style={styles.sidebar}>
           <strong>{t(lang, "metrics")}</strong>
-          <div style={{ marginTop: 8 }}>
-            <div>
-              {t(lang, "verifiedProviders")}: {metrics.verifiedProviders}
+
+          {metrics && (
+            <div style={{ marginTop: 8 }}>
+              <div>
+                {t(lang, "verifiedProviders")}: {metrics.verifiedProviders}
+              </div>
+              <div>
+                {t(lang, "jobsPosted")}: {metrics.jobsPosted}
+              </div>
+              <div>
+                {t(lang, "acceptanceRate")}: {metrics.acceptanceRate}%
+              </div>
             </div>
-            <div>
-              {t(lang, "jobsPosted")}: {metrics.jobsPosted}
-            </div>
-            <div>
-              {t(lang, "acceptanceRate")}: {metrics.acceptanceRate}%
-            </div>
-          </div>
+          )}
 
           <input
             placeholder="search..."
@@ -137,6 +207,7 @@ export default function AdminPanel({ lang }) {
             onChange={(e) => setQuery(e.target.value)}
             style={styles.input}
           />
+
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
@@ -165,25 +236,39 @@ export default function AdminPanel({ lang }) {
             </h3>
 
             {filteredUsers.map((u) => (
-              <div key={u.id} style={styles.row}>
+              <div key={u._id} style={styles.row}>
                 <div>
                   <strong>{u.name}</strong>
                   <div style={{ fontSize: 12 }}>{u.phone}</div>
                 </div>
 
-                <div style={{ display: "flex", gap: 6 }}>
+                <div style={styles.actions}>
                   <button style={styles.smallBtn}>{t(lang, "view")}</button>
 
                   <button
                     style={styles.smallBtn}
-                    onClick={() => toggleVerify(u.id)}
+                    onClick={() => updateVerification(u._id, "promote")}
                   >
-                    {u.verified ? t(lang, "revoke") : t(lang, "verify")}
+                    Promote
                   </button>
 
                   <button
                     style={styles.smallBtn}
-                    onClick={() => toggleBan(u.id)}
+                    onClick={() => updateVerification(u._id, "demote")}
+                  >
+                    Demote
+                  </button>
+
+                  <button
+                    style={styles.smallBtnDanger}
+                    onClick={() => updateVerification(u._id, "reset")}
+                  >
+                    Reset
+                  </button>
+
+                  <button
+                    style={styles.smallBtn}
+                    onClick={() => toggleBan(u._id)}
                   >
                     {u.banned ? t(lang, "unban") : t(lang, "ban")}
                   </button>
@@ -198,13 +283,29 @@ export default function AdminPanel({ lang }) {
             </h3>
 
             {filteredJobs.map((j) => (
-              <div key={j.id} style={styles.row}>
+              <div key={j._id} style={styles.row}>
                 <div>
                   <strong>{j.title}</strong>
                   <div style={{ fontSize: 12 }}>{j.client}</div>
                 </div>
 
-                <button style={styles.smallBtn}>{t(lang, "view")}</button>
+                <div style={styles.actions}>
+                  <button style={styles.smallBtn}>{t(lang, "view")}</button>
+
+                  <button
+                    style={styles.smallBtn}
+                    onClick={() => forceCancel(j._id)}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    style={styles.smallBtnDanger}
+                    onClick={() => deleteJob(j._id)}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             ))}
           </section>
@@ -213,12 +314,12 @@ export default function AdminPanel({ lang }) {
             <h3>{t(lang, "disputes")}</h3>
 
             {disputes.map((d) => (
-              <div key={d.id} style={styles.row}>
+              <div key={d._id} style={styles.row}>
                 <div>{d.text}</div>
 
                 <button
                   style={styles.smallBtn}
-                  onClick={() => resolveDispute(d.id)}
+                  onClick={() => resolveDispute(d._id)}
                   disabled={d.resolved}
                 >
                   {d.resolved ? t(lang, "resolved") : t(lang, "resolve")}
@@ -228,23 +329,18 @@ export default function AdminPanel({ lang }) {
           </section>
         </main>
       </div>
-
-      {photoModalSrc !== null && (
-        <div style={styles.modalBack}>
-          <div style={styles.modal}>
-            <button style={styles.btn} onClick={() => setPhotoModalSrc(null)}>
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 const styles = {
   page: { padding: 20, minHeight: "100vh", background: "#0f1723" },
-  header: { display: "flex", justifyContent: "space-between", color: "#fff" },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    color: "#fff",
+    marginBottom: 16,
+  },
   container: { display: "flex", gap: 16 },
   sidebar: { width: 250, background: "#fff", padding: 12, borderRadius: 8 },
   main: { flex: 1, background: "#fff", padding: 12, borderRadius: 8 },
@@ -255,31 +351,47 @@ const styles = {
     border: "1px solid #eee",
     borderRadius: 6,
     marginBottom: 8,
+    alignItems: "center",
   },
-  btn: { background: "#0b1220", color: "#fff", border: "none", padding: 8 },
+  actions: { display: "flex", gap: 6 },
+  btn: {
+    background: "#0b1220",
+    color: "#fff",
+    border: "none",
+    padding: 8,
+    borderRadius: 6,
+    cursor: "pointer",
+  },
   btnDanger: {
     background: "#8b1a1a",
     color: "#fff",
     border: "none",
     padding: 8,
+    borderRadius: 6,
+    cursor: "pointer",
   },
-  smallBtn: { padding: 6, background: "#f3f4f6", border: "1px solid #ddd" },
+  smallBtn: {
+    padding: 6,
+    background: "#f3f4f6",
+    border: "1px solid #ddd",
+    borderRadius: 6,
+    cursor: "pointer",
+  },
+  smallBtnDanger: {
+    padding: 6,
+    background: "#fee2e2",
+    border: "1px solid #fca5a5",
+    borderRadius: 6,
+    cursor: "pointer",
+  },
   input: {
     width: "100%",
-    height: 42, // ← CRITICAL
-    padding: "10px", // ← SAME for input & select
+    height: 42,
+    padding: "10px",
     borderRadius: 6,
     border: "1px solid #ddd",
-    boxSizing: "border-box", // ← Prevent weird sizing
+    boxSizing: "border-box",
     fontSize: 14,
+    marginTop: 10,
   },
-  modalBack: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,0.6)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modal: { background: "#fff", padding: 20 },
 };
