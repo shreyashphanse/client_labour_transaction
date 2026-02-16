@@ -237,7 +237,7 @@ export const getLabourDashboard = async (req, res) => {
 
     const activeJobs = await Job.countDocuments({
       labourId: userId,
-      status: { $in: ["assigned", "in_progress"] },
+      status: "assigned",
     });
 
     const earnings = await Payment.aggregate([
