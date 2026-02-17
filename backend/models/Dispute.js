@@ -58,6 +58,18 @@ const disputeSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+
+    type: {
+      type: String,
+      enum: ["job", "payment"],
+      required: true,
+    },
+
+    payment: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Payment",
+      default: null,
+    },
   },
   { timestamps: true },
 );

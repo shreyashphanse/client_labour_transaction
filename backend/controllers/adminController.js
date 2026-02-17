@@ -100,14 +100,20 @@ export const toggleVerify = async (req, res) => {
 
 /* BAN */
 export const toggleBan = async (req, res) => {
-  const user = await User.findById(req.params.id);
+  try {
+    const user = await User.findById(req.params.id);
 
-  if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-  user.banned = !user.banned;
-  await user.save();
+    user.banned = !user.banned;
 
-  res.json({ message: "Ban updated" });
+    await user.save();
+
+    res.json({ message: "Ban updated" });
+  } catch (err) {
+    console.error("BAN ERROR:", err);
+    res.status(500).json({ message: "Server Error" });
+  }
 };
 
 /* DELETE JOB */

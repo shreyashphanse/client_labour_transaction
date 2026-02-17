@@ -94,6 +94,11 @@ const userSchema = new mongoose.Schema(
       default: "normal",
     },
 
+    banned: {
+      type: Boolean,
+      default: false,
+    },
+
     disputeCount: {
       type: Number,
       default: 0,

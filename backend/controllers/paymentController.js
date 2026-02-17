@@ -1,6 +1,7 @@
 import Payment from "../models/Payment.js";
 import User from "../models/User.js"; // ✅ ADD THIS
 import { calculateReliabilityScore } from "../utils/reliabilityUtils.js"; // ✅ ALSO REQUIRED
+import Dispute from "../models/Dispute.js";
 
 export const uploadProof = async (req, res) => {
   try {
@@ -157,7 +158,9 @@ export const getAllPayments = async (req, res) => {
 
 export const disputePayment = async (req, res) => {
   try {
-    const payment = await Payment.findById(req.params.id);
+    const { reason } = req.body;
+
+    const payment = await Payment.findById(req.params.id).populate("job");
 
     if (!payment) {
       return res.status(404).json({ message: "Payment not found" });
@@ -171,8 +174,26 @@ export const disputePayment = async (req, res) => {
       return res.status(400).json({ message: "Cannot dispute this payment" });
     }
 
-    payment.status = "disputed";
+    if (!reason || reason.length < 10) {
+      return res.status(400).json({ message: "Invalid dispute reason" });
+    }
 
+    /* ✅ CREATE REAL DISPUTE ENTRY */
+
+    const severity =
+      reason.length > 200 ? "high" : reason.length > 80 ? "medium" : "low";
+
+    await Dispute.create({
+      type: "payment",
+      payment: payment._id,
+      job: payment.job._id,
+      raisedBy: req.user._id,
+      against: payment.client,
+      text: reason,
+      severity,
+    });
+
+    payment.status = "disputed";
     await payment.save();
 
     res.json({ message: "Payment disputed" });
