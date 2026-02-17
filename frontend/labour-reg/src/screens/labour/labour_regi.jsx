@@ -3,7 +3,6 @@ import FormCard from "../../components/FormCard";
 import { ensureMobileFocus } from "../../utils/mobileFocus";
 import { useNavigate } from "react-router-dom";
 import { t } from "../../utils/i18n";
-
 import api from "../../utils/api";
 
 const COMMON_SKILLS = [
@@ -19,6 +18,8 @@ const COMMON_SKILLS = [
   "Helper",
 ];
 
+const STATIONS = ["Vasai", "Nalasopara", "Virar"];
+
 export default function LabourRegi({ lang }) {
   const formRef = useRef(null);
   const navigate = useNavigate();
@@ -28,10 +29,12 @@ export default function LabourRegi({ lang }) {
     phone: "",
     password: "",
     dob: "",
+    stationFrom: "",
+    stationTo: "",
   });
 
-  const [skills, setSkills] = useState([]); // ✅ NEW
-  const [skillInput, setSkillInput] = useState(""); // ✅ NEW
+  const [skills, setSkills] = useState([]);
+  const [skillInput, setSkillInput] = useState("");
   const [loading, setLoading] = useState(false);
 
   const filteredSkills = COMMON_SKILLS.filter((skill) =>
@@ -52,17 +55,10 @@ export default function LabourRegi({ lang }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const { name, phone, password, dob } = form;
+    const { name, phone, password, dob, stationFrom, stationTo } = form;
 
-    if (!phone.trim()) {
-      alert(t(lang, "phoneRequired"));
-      return;
-    }
-
-    if (!dob) {
-      alert(t(lang, "dobRequired"));
-      return;
-    }
+    if (!phone.trim()) return alert(t(lang, "phoneRequired"));
+    if (!dob) return alert(t(lang, "dobRequired"));
 
     const birthDate = new Date(dob);
     const today = new Date();
@@ -76,46 +72,30 @@ export default function LabourRegi({ lang }) {
       age--;
     }
 
-    if (isNaN(age)) {
-      alert(t(lang, "invalidDob"));
-      return;
-    }
+    if (isNaN(age)) return alert(t(lang, "invalidDob"));
+    if (age < 18) return alert(t(lang, "ageRestriction"));
 
-    if (age < 18) {
-      alert(t(lang, "ageRestriction"));
-      return;
-    }
+    if (!name.trim()) return alert(t(lang, "nameRequired"));
+    if (!password.trim()) return alert("Password required");
 
-    if (!name.trim()) {
-      alert(t(lang, "nameRequired"));
-      return;
-    }
+    if (!stationFrom || !stationTo) return alert("Select station range");
 
-    if (!password.trim()) {
-      alert("Password required");
-      return;
-    }
-
-    if (skills.length === 0) {
-      // ✅ OPTIONAL BUT SMART
-      alert("Select at least one skill");
-      return;
-    }
+    if (skills.length === 0) return alert("Select at least one skill");
 
     try {
       setLoading(true);
 
-      const { data } = await api.post("/auth/register/labour", {
+      await api.post("/auth/register/labour", {
         name,
         phone,
         password,
-        skills, // ✅ BACKEND WIRING
+        dob,
+        stationFrom,
+        stationTo,
+        skills,
       });
 
-      console.log("Registered:", data);
-
       alert(t(lang, "registrationSuccess"));
-
       navigate("/login");
     } catch (err) {
       console.error(err.response?.data || err.message);
@@ -155,7 +135,43 @@ export default function LabourRegi({ lang }) {
             />
           </label>
 
-          {/* 🔥 SKILL SELECTOR */}
+          {/* ✅ STATION RANGE 🔥 */}
+
+          <div className="row">
+            <label className="field">
+              <span className="label-text">Station From</span>
+              <select
+                value={form.stationFrom}
+                onChange={(e) =>
+                  setForm({ ...form, stationFrom: e.target.value })
+                }
+                className="input"
+              >
+                <option value="">Select</option>
+                {STATIONS.map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field">
+              <span className="label-text">Station To</span>
+              <select
+                value={form.stationTo}
+                onChange={(e) =>
+                  setForm({ ...form, stationTo: e.target.value })
+                }
+                className="input"
+              >
+                <option value="">Select</option>
+                {STATIONS.map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {/* ✅ SKILL SELECTOR 🔥 */}
 
           <label className="field">
             <span className="label-text">Skills</span>
@@ -223,131 +239,105 @@ export default function LabourRegi({ lang }) {
         </form>
 
         <style>{`
+          .page-root {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: #f3f6ff;
+          }
 
-  .page-root {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    background: #f3f6ff;
-  }
+          .form {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+          }
 
-  .form {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
+          .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            position: relative;
+          }
 
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    position: relative;
-  }
+          .label-text {
+            font-size: 13px;
+            color: #6b7280;
+          }
 
-  .label-text {
-    font-size: 13px;
-    color: #6b7280;
-  }
+          .input {
+            height: 44px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(15, 23, 42, 0.06);
+            background: #f8fafc;
+            font-size: 15px;
+            outline: none;
+          }
 
-  .input {
-    height: 44px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid rgba(15, 23, 42, 0.06);
-    background: #f8fafc;
-    font-size: 15px;
-    outline: none;
-  }
+          .submit-btn {
+            height: 46px;
+            border-radius: 10px;
+            border: none;
+            background: #2b6ef6;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+          }
 
-  .submit-btn {
-    height: 46px;
-    border-radius: 10px;
-    border: none;
-    background: #2b6ef6;
-    color: white;
-    font-weight: 600;
-    cursor: pointer;
-  }
+          .row {
+            display: flex;
+            gap: 10px;
+          }
 
-  .login-redirect {
-    margin-top: 12px;
-    display: flex;
-    justify-content: center;
-    gap: 6px;
-  }
+          .skills-box {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(15, 23, 42, 0.06);
+            background: #f8fafc;
+            min-height: 44px;
+            align-items: center;
+          }
 
-  .login-link {
-    background: none;
-    border: none;
-    color: #2b6ef6;
-    cursor: pointer;
-  }
+          .skill-tag {
+            background: #2b6ef6;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
 
-  button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
+          .skill-input {
+            border: none;
+            outline: none;
+            background: transparent;
+            font-size: 14px;
+            flex: 1;
+          }
 
-  /* 🔥 SKILL SELECTOR */
+          .skills-dropdown {
+            border-radius: 10px;
+            border: 1px solid rgba(15, 23, 42, 0.06);
+            margin-top: 6px;
+            background: white;
+          }
 
-  .skills-box {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 8px 10px;
-    border-radius: 10px;
-    border: 1px solid rgba(15, 23, 42, 0.06);
-    background: #f8fafc;
-    min-height: 44px;
-    align-items: center;
-  }
+          .dropdown-item {
+            padding: 10px 12px;
+            cursor: pointer;
+          }
 
-  .skill-tag {
-    background: #2b6ef6;
-    color: white;
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .skill-tag span {
-    cursor: pointer;
-    font-weight: bold;
-  }
-
-  .skill-input {
-    border: none;
-    outline: none;
-    background: transparent;
-    font-size: 14px;
-    flex: 1;
-    min-width: 120px;
-  }
-
-  .skills-dropdown {
-    border-radius: 10px;
-    border: 1px solid rgba(15, 23, 42, 0.06);
-    margin-top: 6px;
-    background: white;
-    overflow: hidden;
-  }
-
-  .dropdown-item {
-    padding: 10px 12px;
-    font-size: 14px;
-    cursor: pointer;
-  }
-
-  .dropdown-item:hover {
-    background: #f1f5f9;
-  }
-
-`}</style>
+          .dropdown-item:hover {
+            background: #f1f5f9;
+          }
+        `}</style>
       </FormCard>
     </div>
   );

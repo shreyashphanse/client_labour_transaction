@@ -1,6 +1,21 @@
 import { useState } from "react";
 import api from "../../utils/api";
 
+const COMMON_SKILLS = [
+  "Plumbing",
+  "Electrician",
+  "Carpenter",
+  "Painter",
+  "Cleaning",
+  "AC Repair",
+  "Welder",
+  "Mechanic",
+  "Driver",
+  "Helper",
+];
+
+const STATIONS = ["Vasai", "Nalasopara", "Virar"];
+
 export default function PostJob() {
   const [form, setForm] = useState({
     title: "",
@@ -11,7 +26,18 @@ export default function PostJob() {
     budget: "",
   });
 
+  const [skillInput, setSkillInput] = useState("");
   const [loading, setLoading] = useState(false);
+
+  /* ✅ FILTERED SKILLS */
+  const filteredSkills = COMMON_SKILLS.filter((skill) =>
+    skill.toLowerCase().includes(skillInput.toLowerCase()),
+  );
+
+  const selectSkill = (skill) => {
+    setForm({ ...form, skillRequired: skill });
+    setSkillInput("");
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -20,9 +46,9 @@ export default function PostJob() {
 
     if (!title.trim()) return alert("Title required");
     if (!description.trim()) return alert("Description required");
-    if (!skillRequired.trim()) return alert("Skill required");
-    if (!from.trim()) return alert("From station required");
-    if (!to.trim()) return alert("To station required");
+    if (!skillRequired) return alert("Skill required");
+    if (!from) return alert("From station required");
+    if (!to) return alert("To station required");
     if (!budget) return alert("Budget required");
 
     try {
@@ -72,24 +98,58 @@ export default function PostJob() {
           onChange={(e) => setForm({ ...form, description: e.target.value })}
         />
 
-        <input
-          placeholder="Skill Required"
-          value={form.skillRequired}
-          onChange={(e) => setForm({ ...form, skillRequired: e.target.value })}
-        />
+        {/* ✅ SKILL SELECTOR 🔥 */}
+
+        <div className="field">
+          <input
+            placeholder="Search Skill..."
+            value={skillInput}
+            onChange={(e) => setSkillInput(e.target.value)}
+          />
+
+          {skillInput && (
+            <div className="skills-dropdown">
+              {filteredSkills.map((skill) => (
+                <div
+                  key={skill}
+                  onClick={() => selectSkill(skill)}
+                  className="dropdown-item"
+                >
+                  {skill}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {form.skillRequired && (
+            <div className="selected-skill">
+              Selected: <b>{form.skillRequired}</b>
+            </div>
+          )}
+        </div>
+
+        {/* ✅ STATION DROPDOWN 🔥 */}
 
         <div className="stations">
-          <input
-            placeholder="From Station"
+          <select
             value={form.from}
             onChange={(e) => setForm({ ...form, from: e.target.value })}
-          />
+          >
+            <option value="">From Station</option>
+            {STATIONS.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </select>
 
-          <input
-            placeholder="To Station"
+          <select
             value={form.to}
             onChange={(e) => setForm({ ...form, to: e.target.value })}
-          />
+          >
+            <option value="">To Station</option>
+            {STATIONS.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </select>
         </div>
 
         <input
@@ -124,6 +184,7 @@ export default function PostJob() {
           flex-direction: column;
           gap: 12px;
           border: 1px solid rgba(16, 185, 129, 0.15);
+          position: relative;
         }
 
         h2 {
@@ -132,12 +193,14 @@ export default function PostJob() {
         }
 
         input,
-        textarea {
+        textarea,
+        select {
           height: 44px;
           border-radius: 12px;
           border: 1px solid rgba(16, 185, 129, 0.25);
           padding: 0 12px;
           outline: none;
+          font-size: 14px;
         }
 
         textarea {
@@ -168,6 +231,40 @@ export default function PostJob() {
         button:disabled {
           opacity: 0.6;
           cursor: not-allowed;
+        }
+
+        /* ✅ SKILL DROPDOWN */
+
+        .field {
+          position: relative;
+        }
+
+        .skills-dropdown {
+          position: absolute;
+          width: 100%;
+          background: white;
+          border-radius: 12px;
+          border: 1px solid rgba(16, 185, 129, 0.25);
+          margin-top: 4px;
+          max-height: 160px;
+          overflow-y: auto;
+          z-index: 10;
+        }
+
+        .dropdown-item {
+          padding: 10px 12px;
+          cursor: pointer;
+          font-size: 14px;
+        }
+
+        .dropdown-item:hover {
+          background: #f0fdf4;
+        }
+
+        .selected-skill {
+          font-size: 13px;
+          color: #065f46;
+          margin-top: 6px;
         }
       `}</style>
     </div>
