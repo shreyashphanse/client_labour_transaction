@@ -10,6 +10,7 @@ const jobSchema = new mongoose.Schema(
 
     labourId: {
       type: mongoose.Schema.Types.ObjectId,
+      ref: "User", // ✅ CRITICAL FIX
       default: null,
     },
 

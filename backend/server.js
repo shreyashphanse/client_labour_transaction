@@ -10,6 +10,9 @@ import reportRoutes from "./routes/reportRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import cors from "cors";
 import adminRoutes from "./routes/adminRoutes.js";
+import disputeRoutes from "./routes/disputeRoutes.js";
+import Payment from "./models/Payment.js";
+import User from "./models/User.js";
 
 dotenv.config();
 connectDB();
@@ -22,6 +25,7 @@ app.use(
   }),
 );
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // ✅ CRITICAL FIX
 app.use("/api/jobs", jobRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/payments", paymentRoutes);
@@ -29,6 +33,8 @@ app.use("/api/ratings", ratingRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/disputes", disputeRoutes);
+app.use("/uploads", express.static("uploads"));
 
 const PORT = process.env.PORT || 5000;
 
@@ -54,5 +60,47 @@ setInterval(async () => {
     }
   } catch (error) {
     console.error("Expiry Check Error:", error.message);
+  }
+}, 60000); // runs every 60 seconds
+
+setInterval(async () => {
+  try {
+    const now = new Date();
+
+    const overduePayments = await Payment.find({
+      status: "pending",
+      deadlineAt: { $lt: now },
+    });
+
+    for (const payment of overduePayments) {
+      const hoursOverdue = Math.floor(
+        (now - payment.deadlineAt) / (60 * 60 * 1000),
+      );
+
+      const penaltyHoursToApply = hoursOverdue - payment.penaltyAppliedHours;
+
+      if (penaltyHoursToApply <= 0) continue;
+
+      const client = await User.findById(payment.client);
+
+      if (!client) continue;
+
+      const penalty = penaltyHoursToApply * 5;
+
+      client.reliabilityScore -= penalty;
+
+      // ✅ Safety floor (VERY IMPORTANT)
+      if (client.reliabilityScore < 0) client.reliabilityScore = 0;
+
+      await client.save();
+
+      payment.penaltyAppliedHours += penaltyHoursToApply;
+
+      await payment.save();
+
+      console.log(`Penalty applied: Client ${client._id} -${penalty}`);
+    }
+  } catch (error) {
+    console.error("Penalty Engine Error:", error.message);
   }
 }, 60000); // runs every 60 seconds

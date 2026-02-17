@@ -1,11 +1,12 @@
 export const calculateReliabilityScore = (stats) => {
-  let score = 100;
+  let score = 50; // ✅ Neutral baseline
 
-  score += stats.completedJobs * 10;
-  score -= stats.cancelledJobs * 15;
+  score += (stats.completedJobs || 0) * 5;
+  score -= (stats.cancelledJobs || 0) * 10;
+  score += (stats.verifiedPayments || 0) * 8;
 
-  if (score < 0) score = 0;
   if (score > 100) score = 100;
+  if (score < 0) score = 0;
 
   return score;
 };

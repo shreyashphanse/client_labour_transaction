@@ -1,12 +1,12 @@
 import Job from "../models/Job.js";
-import { isStationOverlap } from "../utils/stationUtils.js";
+import { isStationOverlap, getOverlapStrength } from "../utils/stationUtils.js";
 import { getBudgetCompatibility } from "../utils/budgetUtils.js";
 import { calculateJobScore } from "../utils/rankingUtils.js";
 import { calculateReliabilityScore } from "../utils/reliabilityUtils.js";
 import { calculateSuccessProbability } from "../utils/probabilityUtils.js";
 import Payment from "../models/Payment.js";
-import { updateReliability } from "../utils/reliabilityEngine.js";
 import User from "../models/User.js";
+import { calculateReputation } from "../utils/reputationEngine.js";
 
 // ✅ CREATE JOB
 export const createJob = async (req, res) => {
@@ -127,57 +127,84 @@ export const getLabourStats = async (req, res) => {
 export const getJobs = async (req, res) => {
   try {
     const userId = req.user._id;
+    /* ✅ RISK ENGINE VISIBILITY BLOCK */
+    if (req.user.riskLevel === "dangerous") {
+      return res.json([]);
+    }
 
     const { skill, from, to, expectedRate } = req.query;
 
-    // ✅ Base Query (CRITICAL FIX)
     let jobs = await Job.find({
       status: "open",
-      createdBy: { $ne: userId }, // ❌ Hide own jobs
-      rejectedBy: { $ne: userId }, // ❌ Hide rejected jobs
+      createdBy: { $ne: userId },
+      rejectedBy: { $ne: userId },
     });
 
-    // ✅ Skill Filter
     if (skill) {
       jobs = jobs.filter(
         (job) => job.skillRequired.toLowerCase() === skill.toLowerCase(),
       );
     }
 
-    // ✅ Station Overlap
     if (from && to) {
       jobs = jobs.filter((job) =>
         isStationOverlap(job.stationRange.from, job.stationRange.to, from, to),
       );
     }
 
-    // ✅ SINGLE MAP 🔥
-    jobs = jobs.map((job) => {
+    const enrichedJobs = [];
+
+    for (const job of jobs) {
       const budgetCompatibility = getBudgetCompatibility(
         job.budget,
         Number(expectedRate),
       );
 
-      const clientScore = 70; // TEMP (dynamic later)
+      const stationOverlapStrength = getOverlapStrength(
+        job.stationRange.from,
+        job.stationRange.to,
+        req.user.stationRange?.start,
+        req.user.stationRange?.end,
+      );
 
-      return {
+      const skillMatch =
+        !req.user.skills?.length || req.user.skills.includes(job.skillRequired);
+
+      const client = await User.findById(job.createdBy);
+
+      const clientReliability = client?.reliabilityScore || 50;
+
+      const successProbability = calculateSuccessProbability({
+        clientScore: clientReliability,
+        budgetCompatibility,
+        stationOverlapStrength,
+        skillMatch,
+      });
+
+      enrichedJobs.push({
         ...job._doc,
 
         budgetCompatibility,
 
-        score: calculateJobScore(job, Number(expectedRate)),
+        successProbability,
 
-        successProbability: calculateSuccessProbability({
-          clientScore,
+        score: calculateJobScore(job, Number(expectedRate), {
+          skillMatch,
+          stationOverlapStrength,
+
+          clientReliability, // already exists
+          labourReliability: req.user.reliabilityScore, // ✅ NEW
+          clientRisk: client?.riskLevel, // ✅ NEW
+
           budgetCompatibility,
+          successProbability,
         }),
-      };
-    });
+      });
+    }
 
-    // ✅ SORT
-    jobs.sort((a, b) => b.score - a.score);
+    enrichedJobs.sort((a, b) => b.score - a.score);
 
-    res.json(jobs);
+    res.json(enrichedJobs);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -264,7 +291,20 @@ export const getMyPostedJobs = async (req, res) => {
       createdBy: req.user._id,
     }).sort({ createdAt: -1 });
 
-    res.json(jobs);
+    const enrichedJobs = [];
+
+    for (const job of jobs) {
+      const payment = await Payment.findOne({ job: job._id });
+
+      enrichedJobs.push({
+        ...job._doc,
+        paymentStatus: payment?.status || null,
+        paymentId: payment?._id || null,
+        paymentDeadline: payment?.deadlineAt || null,
+      });
+    }
+
+    res.json(enrichedJobs); // ✅ ONLY RESPONSE
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -292,7 +332,20 @@ export const getMyCompletedJobs = async (req, res) => {
       status: "completed",
     }).sort({ createdAt: -1 });
 
-    res.json(jobs);
+    const enrichedJobs = [];
+
+    for (const job of jobs) {
+      const payment = await Payment.findOne({ job: job._id });
+
+      enrichedJobs.push({
+        ...job._doc,
+
+        paymentStatus: payment?.status || null,
+        paymentId: payment?._id || null,
+      });
+    }
+
+    res.json(enrichedJobs);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -327,11 +380,16 @@ export const completeJob = async (req, res) => {
 
     if (!job) return res.status(404).json({ message: "Job not found" });
 
-    // ✅ Correct ownership check
+    if (!job.labourId) {
+      return res.status(400).json({ message: "No labour assigned" });
+    }
+
+    // ✅ Ownership check
     if (!job.labourId || job.labourId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Not authorized" });
     }
 
+    // ✅ State guards
     if (job.status === "completed") {
       return res.status(400).json({ message: "Job already completed" });
     }
@@ -340,27 +398,39 @@ export const completeJob = async (req, res) => {
       return res.status(400).json({ message: "Job cannot be completed" });
     }
 
+    // ✅ Completion update
     job.status = "completed";
+    job.completedAt = new Date();
+
     await job.save();
 
-    // ✅ Prevent duplicate payment
+    /* ✅ PAYMENT GENERATION 🔥 */
+
     const existingPayment = await Payment.findOne({ job: job._id });
 
     if (!existingPayment) {
+      const deadline = new Date(job.completedAt.getTime() + 2 * 60 * 60 * 1000);
+
       await Payment.create({
         job: job._id,
         client: job.createdBy,
         labour: job.labourId,
         amount: job.budget,
+        deadlineAt: deadline,
+        status: "pending",
       });
     }
 
-    // ✅ Reliability reward
+    /* ✅ RELIABILITY UPDATE (LABOUR) */
+
     const labour = await User.findById(job.labourId);
 
-    labour.reliabilityScore = updateReliability(labour.reliabilityScore, +5);
+    if (labour) {
+      labour.stats.completedJobs += 1;
+      labour.reliabilityScore = calculateReputation(labour);
 
-    await labour.save();
+      await labour.save(); // ✅ ONLY ONCE
+    }
 
     res.json(job);
   } catch (error) {
@@ -398,7 +468,9 @@ export const cancelJob = async (req, res) => {
     // ✅ Reliability Penalty 🔥
     const user = await User.findById(req.user._id);
 
-    user.reliabilityScore = updateReliability(user.reliabilityScore, -10);
+    user.stats.cancelledJobs += 1;
+
+    user.reliabilityScore = calculateReputation(user);
 
     await user.save();
 
@@ -421,7 +493,7 @@ export const submitRating = async (req, res) => {
       return res.status(400).json({ message: "Job not completed" });
     }
 
-    // ✅ CRITICAL SAFETY FIX 🔥🔥🔥
+    // ✅ Safe initialization
     if (!job.ratings) {
       job.ratings = {
         clientToLabour: { rating: null, review: null },
@@ -429,6 +501,7 @@ export const submitRating = async (req, res) => {
       };
     }
 
+    // ✅ Save rating on job
     if (req.user.role === "client") {
       job.ratings.clientToLabour = { rating, review };
     }
@@ -439,9 +512,25 @@ export const submitRating = async (req, res) => {
 
     await job.save();
 
+    /* ✅ RELIABILITY UPDATE */
+
+    const targetUser =
+      req.user.role === "client"
+        ? await User.findById(job.labourId)
+        : await User.findById(job.createdBy);
+
+    if (targetUser) {
+      targetUser.stats.totalRatings += 1;
+      targetUser.stats.ratingSum += rating;
+
+      targetUser.reliabilityScore = calculateReputation(targetUser);
+
+      await targetUser.save();
+    }
+
     res.json({ message: "Rating saved" });
   } catch (err) {
-    console.error("RATING ERROR:", err); // ✅ DEBUG LINE
+    console.error("RATING ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 };

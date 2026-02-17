@@ -25,14 +25,37 @@ const paymentSchema = new mongoose.Schema(
       required: true,
     },
 
+    deadlineAt: {
+      type: Date,
+      required: true,
+    },
+
+    penaltyAppliedHours: {
+      type: Number,
+      default: 0,
+    },
+
     proofImage: {
       type: String,
+      default: null,
     },
 
     status: {
       type: String,
-      enum: ["pending", "proof_uploaded", "confirmed", "verified"],
+      enum: [
+        "pending", // waiting for proof
+        "proof_uploaded", // client submitted
+        "pending_confirmation", // waiting labour action
+        "verified",
+        "disputed",
+      ],
       default: "pending",
+    },
+
+    /* ✅ CRITICAL FOR RELIABILITY ENGINE */
+    verifiedAt: {
+      type: Date,
+      default: null,
     },
   },
   {

@@ -21,6 +21,35 @@ const userSchema = new mongoose.Schema(
       trim: true,
     },
 
+    address: {
+      type: String,
+      default: "",
+    },
+
+    gender: {
+      type: String,
+      enum: ["male", "female", "other"],
+      default: null, // ✅ prevents undefined / empty issues
+
+      validate: {
+        // ✅ ADD THIS RIGHT HERE
+        validator: function (v) {
+          return v === null || ["male", "female", "other"].includes(v);
+        },
+        message: "Invalid gender value",
+      },
+    },
+
+    dob: {
+      type: Date,
+      default: null,
+    },
+
+    profilePhoto: {
+      type: String,
+      default: null,
+    },
+
     password: {
       type: String,
       required: true,
@@ -57,6 +86,24 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["unverified", "basic_verified", "trusted_verified"],
       default: "unverified",
+    },
+
+    riskLevel: {
+      type: String,
+      enum: ["normal", "risky", "dangerous"],
+      default: "normal",
+    },
+
+    disputeCount: {
+      type: Number,
+      default: 0,
+    },
+
+    stats: {
+      completedJobs: { type: Number, default: 0 },
+      cancelledJobs: { type: Number, default: 0 },
+      totalRatings: { type: Number, default: 0 },
+      ratingSum: { type: Number, default: 0 },
     },
 
     reliabilityScore: {
