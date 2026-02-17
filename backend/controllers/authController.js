@@ -50,15 +50,34 @@ export const registerLabour = async (req, res) => {
     const {
       name,
       phone,
-      password, // ✅ ADDED
+      password,
       skills,
-      stationRange,
+      stationFrom, // ✅ NEW
+      stationTo, // ✅ NEW
       expectedRate,
+      dob, // ✅ Optional but recommended
     } = req.body;
 
+    /* ✅ HARD VALIDATION */
+    const VALID_STATIONS = ["Vasai", "Nalasopara", "Virar"];
+
+    if (
+      !VALID_STATIONS.includes(stationFrom) ||
+      !VALID_STATIONS.includes(stationTo)
+    ) {
+      return res.status(400).json({ message: "Invalid stations" });
+    }
+
     if (!name || !phone || !password) {
-      // ✅ UPDATED
-      return res.status(400).json({ message: "Missing fields" });
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    if (!stationFrom || !stationTo) {
+      return res.status(400).json({ message: "Station range required" });
+    }
+
+    if (!skills || skills.length === 0) {
+      return res.status(400).json({ message: "At least one skill required" });
     }
 
     const userExists = await User.findOne({ phone });
@@ -67,16 +86,24 @@ export const registerLabour = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10); // ✅ ADDED
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await User.create({
       name,
       phone,
-      password: hashedPassword, // ✅ ADDED
+      password: hashedPassword,
       role: "labour",
+
       skills,
-      stationRange,
+
+      /* ✅ CRITICAL FIX 🔥 */
+      stationRange: {
+        start: stationFrom,
+        end: stationTo,
+      },
+
       expectedRate,
+      dob,
     });
 
     res.json({

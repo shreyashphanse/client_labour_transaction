@@ -55,23 +55,44 @@ export const getMyProfile = async (req, res) => {
 /* ✅ UPDATE MY PROFILE */
 export const updateMyProfile = async (req, res) => {
   try {
-    console.log("BODY:", req.body); // 🔥 DEBUG
-    console.log("FILE:", req.file); // 🔥 DEBUG
-    const updates = {};
+    console.log("BODY:", req.body);
+    console.log("FILE:", req.file);
 
-    if (req.body.name !== undefined) updates.name = req.body.name;
-    if (req.body.address !== undefined) updates.address = req.body.address;
-    if (req.body.gender !== undefined) updates.gender = req.body.gender;
-    if (req.body.dob !== undefined) updates.dob = req.body.dob;
+    const user = await User.findById(req.user._id);
 
-    /* ✅ PROFILE PHOTO FIX 🔥 */
-    if (req.file) {
-      updates.profilePhoto = `/${req.file.path.replace(/\\/g, "/")}`;
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    const user = await User.findByIdAndUpdate(req.user._id, updates, {
-      new: true,
-    }).select("-password");
+    /* ✅ BASIC FIELDS */
+
+    if (req.body.name !== undefined) user.name = req.body.name;
+    if (req.body.address !== undefined) user.address = req.body.address;
+    if (req.body.gender !== undefined) user.gender = req.body.gender;
+    if (req.body.dob !== undefined) user.dob = req.body.dob;
+
+    /* ✅ STATION RANGE FIX 🔥 */
+
+    if (req.body.stationFrom || req.body.stationTo) {
+      user.stationRange = {
+        start: req.body.stationFrom || user.stationRange?.start,
+        end: req.body.stationTo || user.stationRange?.end,
+      };
+    }
+
+    /* ✅ SKILLS FIX 🔥 */
+
+    if (req.body.skills) {
+      user.skills = JSON.parse(req.body.skills);
+    }
+
+    /* ✅ PROFILE PHOTO */
+
+    if (req.file) {
+      user.profilePhoto = `/${req.file.path.replace(/\\/g, "/")}`;
+    }
+
+    await user.save();
 
     res.json(user);
   } catch (err) {
