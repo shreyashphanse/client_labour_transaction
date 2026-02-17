@@ -4,19 +4,38 @@ const api = axios.create({
   baseURL: "http://localhost:5000/api",
 });
 
+/* ✅ ADD THIS — TOKEN ATTACHMENT 🔥 */
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
 
   if (token) {
+    config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
-  }
-
-  // ✅ CRITICAL FIX 🔥
-  if (config.data instanceof FormData) {
-    config.headers["Content-Type"] = "multipart/form-data";
   }
 
   return config;
 });
+
+/* ✅ RESPONSE INTERCEPTOR */
+
+api.interceptors.response.use(
+  (response) => response,
+
+  (error) => {
+    const status = error.response?.status;
+
+    if (status === 401 || status === 403) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+    }
+
+    return Promise.reject(error);
+  },
+);
 
 export default api;

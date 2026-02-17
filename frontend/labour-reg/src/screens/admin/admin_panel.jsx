@@ -500,6 +500,19 @@ confirmModal = {
                   <div style={{ flex: 1 }}>
                     <strong>{d.job?.title || "Unknown Job"}</strong>
 
+                    {d.type === "payment" && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: "#059669",
+                        }}
+                      >
+                        💰 PAYMENT DISPUTE
+                      </div>
+                    )}
+                    {/* {d.type === "payment" && <span>💰💰</span>} */}
+
                     <div style={{ fontSize: 12, color: "#666" }}>
                       {d.raisedBy?.name} → {d.against?.name}
                     </div>
